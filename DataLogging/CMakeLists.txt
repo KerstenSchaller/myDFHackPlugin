@@ -10,9 +10,10 @@ target_include_directories(DFDataLoggerIncludes INTERFACE
 
 set(DFDATALOGGER_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/DFDataLogger.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/RepeatedLoggers.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/DateAndTime.cpp
     ${CMAKE_CURRENT_LIST_DIR}/models/Deaths.cpp
 )
-
 set(DFDATALOGGER_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/DFDataLogger.hpp
     ${CMAKE_CURRENT_LIST_DIR}/models/Deaths.hpp
@@ -28,3 +29,6 @@ set(DFDATALOGGER_HEADERS
 set(DFDATALOGGER_SOURCES ${DFDATALOGGER_SOURCES} PARENT_SCOPE)
 set(DFDATALOGGER_HEADERS ${DFDATALOGGER_HEADERS} PARENT_SCOPE)
 
+
+# Test app
+add_executable(DateTimeTest test/DateTimeTest.cpp)

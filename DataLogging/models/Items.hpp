@@ -16,6 +16,7 @@ class ItemRecord : public DB::BaseModel
         int64_t mat_type;
         int64_t quality;
         int64_t value;
+        std::string bookTitle;
 
     ItemRecord() = default;
     ItemRecord(int64_t event_id, int64_t item_id, const std::string& item_name, int64_t item_type, const std::string& item_type_str, const std::string& item_descr, bool is_artifact, int64_t mat_index, int64_t mat_type, int64_t quality, int64_t value)
@@ -41,7 +42,7 @@ class ItemRecord : public DB::BaseModel
 
     std::vector<std::string> columnDefinitions() const override
     {
-        return {"event_id INTEGER","item_id INTEGER","item_name TEXT","item_type INTEGER","item_type_str TEXT","item_descr TEXT","is_artifact BOOLEAN","mat_index INTEGER","mat_type INTEGER","quality INTEGER","value INTEGER"};
+        return {"event_id INTEGER","item_id INTEGER","item_name TEXT","item_type INTEGER","item_type_str TEXT","item_descr TEXT","is_artifact BOOLEAN","mat_index INTEGER","mat_type INTEGER","quality INTEGER","value INTEGER","book_title TEXT"};
     }
 
 };
@@ -51,25 +52,27 @@ struct DB::ModelTraits<ItemRecord>
 {
     static std::string insertColumns()
     {
-        return "event_id,item_id,item_name,item_type,item_type_str,item_descr,is_artifact,mat_index,mat_type,quality,value";
+        return "event_id,item_id,item_name,item_type,item_type_str,item_descr,is_artifact,mat_index,mat_type,quality,value,book_title";
     }
 
     static std::string insertPlaceholders()
     {
-        return "?,?,?,?,?,?,?,?,?,?,?";
+        return "?,?,?,?,?,?,?,?,?,?,?,?";
     }
 
     template <typename Statement>
     static void bindInsert(Statement &statement, const ItemRecord &record)
     {
-        statement << record.event_id << record.item_id << record.item_name << record.item_type << record.item_type_str << record.item_descr << record.is_artifact << record.mat_index << record.mat_type << record.quality << record.value;
+        statement << record.event_id << record.item_id << record.item_name << record.item_type << record.item_type_str << record.item_descr << record.is_artifact << record.mat_index << record.mat_type << record.quality << record.value << record.bookTitle;
     }
 
     static void select(sqlite::database &db, const std::string &sql, std::vector<ItemRecord> &results)
     {
-        db << sql >> [&results](int64_t event_id, int64_t item_id, const std::string& item_name, int64_t item_type, const std::string& item_type_str, const std::string& item_descr, bool is_artifact, int64_t mat_index, int64_t mat_type, int64_t quality, int64_t value)
+        db << sql >> [&results](int64_t event_id, int64_t item_id, const std::string& item_name, int64_t item_type, const std::string& item_type_str, const std::string& item_descr, bool is_artifact, int64_t mat_index, int64_t mat_type, int64_t quality, int64_t value, const std::string& book_title)
         {
-            results.emplace_back(event_id, item_id, item_name, item_type, item_type_str, item_descr, is_artifact, mat_index, mat_type, quality, value);
+            ItemRecord r(event_id, item_id, item_name, item_type, item_type_str, item_descr, is_artifact, mat_index, mat_type, quality, value);
+            r.bookTitle = book_title;
+            results.push_back(std::move(r));
         };
     }
 };

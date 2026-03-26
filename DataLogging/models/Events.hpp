@@ -8,7 +8,14 @@
         JOB_COMPLETED = 0,
         UNIT_DEATH = 1,
         ITEM_CREATED = 2,
-        INVASION = 3
+        INVASION = 3,
+        MONTHLY_CITIZEN_LOG = 4,
+        MONTHLY_ANIMAL_LOG = 5,
+        MONTHLY_OTHER_LOG = 6,
+        NEW_CITIZEN = 7,
+        PETITION = 8,
+        SIEGE_START = 9,
+        SIEGE_END = 10
     };
 
 class EventRecord : public DB::BaseModel

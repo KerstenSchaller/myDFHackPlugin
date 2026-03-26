@@ -18,8 +18,15 @@
 #include "Items.hpp"
 #include "Deaths.hpp"
 
+#include "DateAndTime.hpp"
 
+namespace DataLogger{
 
+struct Parameters
+{
+    DFHack::Plugin* plugin;
+    std::string dbName;
+};
 
 
 
@@ -27,16 +34,8 @@
 /* Register events */
 command_result setupLogging(color_ostream& out, std::vector<std::string>& parameters);
 
-struct date {
-    int16_t day;
-    int16_t month;
-    int16_t year;
-    int32_t tick;
 
-    date(int16_t day, int16_t month, int16_t year, int32_t tick) : day(day), month(month), year(year), tick(tick) {}
-};
 
-date getDate();
 
 void jobCompleted(color_ostream& out, void* _job);
 
@@ -50,4 +49,6 @@ void syndrome(color_ostream& out, void* ptr);
 
 void invasion(color_ostream& out, void* ptr);
 
-void setPluginSelf(DFHack::Plugin* plugin);
+void setParams(Parameters params);
+
+}
