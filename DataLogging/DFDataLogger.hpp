@@ -51,9 +51,18 @@ void invasion(color_ostream& out, void* ptr);
 
 void setParams(Parameters params);
 
+// query structs
+struct unitDeathInfo
+{
+    UnitRecord victim;
+    UnitRecord killer;
+    std::string death_cause;
+};
+
 // query functions
 std::vector<int32_t> getUniqueYears();
 std::vector<UnitRecord> getNewCitizens(int32_t year);
+std::vector<unitDeathInfo> getCitizenDeaths(int32_t year);
 std::vector<JobRecord> getJobsDone(int32_t year);
 
 

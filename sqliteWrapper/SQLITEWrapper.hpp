@@ -178,6 +178,22 @@ class Database {
             }
             return results;
         }
+
+        // Lambda overload: columns are bound directly to the callback parameters
+        // by sqlite_modern_cpp. No model or ModelTraits needed.
+        template<typename Callback>
+        void query(const std::string& sqlString, Callback&& callback)
+        {
+            try
+            {
+                db << sqlString >> std::forward<Callback>(callback);
+            }
+            catch (std::exception &e)
+            {
+                std::cerr << "Error querying data: " << e.what() << "\n";
+                Logger::log("Error querying data: " + std::string(e.what()) + "\nSQL: " + sqlString);
+            }
+        }
     };
 
 }

@@ -105,10 +105,6 @@ static int pluginTest2(lua_State *L)
 // tokens are used by the dfhack gui lua to encode fg color, bg color, text, gap, hasLinebreak
 static int getTokenizedData(lua_State *L, std::vector<string> textData, int32_t fgColor = 7, int32_t bgColor = 0, int32_t gap = 0, bool hasLinebreak = false)
 {
-    // get parameters
-    int32_t year = (int32_t)luaL_checkinteger(L, 1);
-    int32_t dataType = (int32_t)luaL_checkinteger(L, 2);
-
     // convert to Lua table
     lua_createtable(L, (int)textData.size(), 0);
     int i = 1;
@@ -125,7 +121,7 @@ static int getTokenizedData(lua_State *L, std::vector<string> textData, int32_t 
 }
 
 // get new citizens as tokens
-    static int getNewCitizensLua(lua_State *L)
+    static int getNewCitizens(lua_State *L)
 {
     int32_t year = (int32_t)luaL_checkinteger(L, 1);
     auto newCitizens = getNewCitizens(year);
@@ -143,7 +139,7 @@ static int getTokenizedData(lua_State *L, std::vector<string> textData, int32_t 
 }
 
 // get years as a plain Lua array of integers
-static int getUniqueYearsLua(lua_State *L)
+static int getUniqueYears(lua_State *L)
 {
     auto years = DataLogger::getUniqueYears();
     // Return a plain Lua array of integers.
@@ -156,6 +152,45 @@ static int getUniqueYearsLua(lua_State *L)
     return 1;
 }
 
+static int getCitizensDied(lua_State *L)
+{
+    int32_t year = (int32_t)luaL_checkinteger(L, 1);
+    auto citizenDeaths = DataLogger::getCitizenDeaths(year);
+    vector<string> textData;
+    for (const auto& death : citizenDeaths) 
+    {
+        std::string formatStr = fmt::format("{}, a {} year old {} {}, died of {}.", death.victim.name, death.victim.age, death.victim.race, death.victim.profession, death.death_cause);
+        textData.push_back(formatStr);
+    }
+
+    // convert to Lua table
+    getTokenizedData(L, textData); // pass textData to getTokenizedData
+
+    return 1;
+}
+
+static int getPopulationData(lua_State *L)
+{
+    int32_t year = (int32_t)luaL_checkinteger(L, 1);
+    int32_t index = (int32_t)luaL_checkinteger(L, 2);
+
+    // based on the index different types of population data can be returned, for example:
+    switch(index) {
+        // get new citizens
+        case 0: 
+        {
+            getNewCitizens(L);
+            break;
+        }
+        case 1:
+        {
+            getCitizensDied(L);
+            break;
+        }
+    }
+    return 1;
+}
+
 DFHACK_PLUGIN_LUA_FUNCTIONS {
     DFHACK_LUA_FUNCTION(pluginTest),
     DFHACK_LUA_END
@@ -163,8 +198,8 @@ DFHACK_PLUGIN_LUA_FUNCTIONS {
 
 DFHACK_PLUGIN_LUA_COMMANDS {
     DFHACK_LUA_COMMAND(pluginTest2),
-    DFHACK_LUA_COMMAND(getNewCitizensLua),
-    DFHACK_LUA_COMMAND(getUniqueYearsLua),
+    DFHACK_LUA_COMMAND(getPopulationData),
+    DFHACK_LUA_COMMAND(getUniqueYears),
     DFHACK_LUA_END
 };
 
