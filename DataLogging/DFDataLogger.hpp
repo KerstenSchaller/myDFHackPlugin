@@ -52,7 +52,9 @@ void invasion(color_ostream& out, void* ptr);
 void setParams(Parameters params);
 
 // query functions
+std::vector<int32_t> getUniqueYears();
 std::vector<UnitRecord> getNewCitizens(int32_t year);
 std::vector<JobRecord> getJobsDone(int32_t year);
+
 
 }

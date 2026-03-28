@@ -79,24 +79,82 @@ DFhackCExport command_result plugin_init(color_ostream &out, std::vector<PluginC
 
 int pluginTest()
 {
-    return 15;
+    return 11;
 }
 
-struct pluginTestStruct {
+struct pluginTestStruct
+{
     int value;
-    string name;
+    std::string name;
 };
 
 static int pluginTest2(lua_State *L)
 {
     pluginTestStruct s{15, "Test"};
 
-    lua_createtable(L, 0, 2);                 // result table
+    lua_createtable(L, 0, 2); // result table
     DFHack::Lua::SetField(L, s.value, -1, "value");
     DFHack::Lua::SetField(L, s.name,  -1, "name");
     return 1;
 }
 
+
+
+// generic function to get data from Lua
+// returns a table of tables, where each inner table represents a token
+// tokens are used by the dfhack gui lua to encode fg color, bg color, text, gap, hasLinebreak
+static int getTokenizedData(lua_State *L, std::vector<string> textData, int32_t fgColor = 7, int32_t bgColor = 0, int32_t gap = 0, bool hasLinebreak = false)
+{
+    // get parameters
+    int32_t year = (int32_t)luaL_checkinteger(L, 1);
+    int32_t dataType = (int32_t)luaL_checkinteger(L, 2);
+
+    // convert to Lua table
+    lua_createtable(L, (int)textData.size(), 0);
+    int i = 1;
+    for (const auto &_text : textData) {
+        lua_createtable(L, 0, 4);
+        DFHack::Lua::SetField(L, fgColor,    -1, "fgColor");
+        DFHack::Lua::SetField(L, bgColor,       -1, "bgColor");
+        DFHack::Lua::SetField(L, _text,        -1, "text");
+        DFHack::Lua::SetField(L, gap, -1, "gap");
+        DFHack::Lua::SetField(L, hasLinebreak, -1, "hasLinebreak");
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
+
+// get new citizens as tokens
+    static int getNewCitizensLua(lua_State *L)
+{
+    int32_t year = (int32_t)luaL_checkinteger(L, 1);
+    auto newCitizens = getNewCitizens(year);
+    vector<string> textData;
+    for (const auto& citizen : newCitizens) 
+    {
+        textData.push_back("Unit ID: " + to_string(citizen.unit_id) + ", Name: " + citizen.name );
+    }
+    
+
+    // convert to Lua table
+    getTokenizedData(L, textData); // pass textData to getTokenizedData
+
+    return 1;
+}
+
+// get years as a plain Lua array of integers
+static int getUniqueYearsLua(lua_State *L)
+{
+    auto years = DataLogger::getUniqueYears();
+    // Return a plain Lua array of integers.
+    lua_createtable(L, (int)years.size(), 0);
+    int i = 1;
+    for (const auto &year : years) {
+        lua_pushinteger(L, year);
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
 
 DFHACK_PLUGIN_LUA_FUNCTIONS {
     DFHACK_LUA_FUNCTION(pluginTest),
@@ -105,6 +163,8 @@ DFHACK_PLUGIN_LUA_FUNCTIONS {
 
 DFHACK_PLUGIN_LUA_COMMANDS {
     DFHACK_LUA_COMMAND(pluginTest2),
+    DFHACK_LUA_COMMAND(getNewCitizensLua),
+    DFHACK_LUA_COMMAND(getUniqueYearsLua),
     DFHACK_LUA_END
 };
 

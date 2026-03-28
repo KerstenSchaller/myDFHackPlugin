@@ -87,6 +87,8 @@ class Table {
 public:
     Table(sqlite::database& db) : db(db) {}
 
+
+
     std::vector<T> queryWhere(const std::vector<WhereClause>& whereClauses) {
         std::vector<T> results;
         std::string sqlString = "SELECT " + ModelTraits<T>::insertColumns() + " FROM " + T().tableName() + " WHERE ";
@@ -159,6 +161,22 @@ class Database {
             std::cout << "SQL: " << sqlString << "\n";
             Logger::log("Error creating table: " + std::string(e.what()) + "\nSQL: " + sqlString);
             }
+        }
+
+        template<typename T>
+        std::vector<T> query(std::string sqlString)
+        {
+            std::vector<T> results;
+            try
+            {
+                ModelTraits<T>::select(db, sqlString, results);
+            } 
+            catch (std::exception &e)
+            {
+                std::cerr << "Error querying data: " << e.what() << "\n";
+                Logger::log("Error querying data: " + std::string(e.what()) + "\nSQL: " + sqlString);
+            }
+            return results;
         }
     };
 

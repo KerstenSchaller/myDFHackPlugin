@@ -28,6 +28,7 @@
 #include "Items.hpp"
 #include "Deaths.hpp"
 #include "Petitions.hpp"
+#include "models/Primitives.hpp"
 #include "Sieges.hpp"
 #include "DateAndTime.hpp"
 
@@ -285,6 +286,17 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
         Logger::log("Item created with no item. Item id: " + std::to_string(itemId));
     }
 
+}
+
+// Query functions
+
+std::vector<int32_t> DataLogger::getUniqueYears()
+{
+    std::vector<int32_t> years;
+    std::string sqlString = "SELECT DISTINCT year FROM event_records;";
+    
+
+    return myDb.query<int32_t>(sqlString);
 }
 
 std::vector<UnitRecord> DataLogger::getNewCitizens(int32_t year)
