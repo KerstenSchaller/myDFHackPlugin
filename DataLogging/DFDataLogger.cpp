@@ -37,13 +37,13 @@ DataLogger::Parameters params;
 
 DB::Database myDb("myDatabase.db");
 
-DB::Table<EventRecord> eventsTable = myDb.getTable<EventRecord>();
-DB::Table<JobRecord> jobsTable = myDb.getTable<JobRecord>();
-DB::Table<UnitRecord> unitsTable = myDb.getTable<UnitRecord>();
-DB::Table<ItemRecord> itemsTable = myDb.getTable<ItemRecord>();
-DB::Table<DeathRecord> deathsTable = myDb.getTable<DeathRecord>();
-DB::Table<PetitionRecord> petitionsTable = myDb.getTable<PetitionRecord>();
-DB::Table<SiegeRecord> siegesTable = myDb.getTable<SiegeRecord>();
+DB::Table<EventRecord> eventsTable = myDb.create_table<EventRecord>();
+DB::Table<JobRecord> jobsTable = myDb.create_table<JobRecord>();
+DB::Table<UnitRecord> unitsTable = myDb.create_table<UnitRecord>();
+DB::Table<ItemRecord> itemsTable = myDb.create_table<ItemRecord>();
+DB::Table<DeathRecord> deathsTable = myDb.create_table<DeathRecord>();
+DB::Table<PetitionRecord> petitionsTable = myDb.create_table<PetitionRecord>();
+DB::Table<SiegeRecord> siegesTable = myDb.create_table<SiegeRecord>();
 
 std::unique_ptr<EventManager::EventHandler> timeHandler = nullptr;
 
@@ -157,7 +157,6 @@ void logUnitsAndOthers()
     EventRecord otherEvent = EventRecord(day, month, year, tick, event_type::MONTHLY_OTHER_LOG, "Log of other active units");    
     auto otherEvent_id = eventsTable.insertData(otherEvent);
 
-    Logger::log("Logging units and other details for date: " + currentDate.toString() + ". Total active units: " + std::to_string(allActiveUnits.size()));
 
     // log the units
     for (auto& unit : allActiveUnits) 
@@ -166,19 +165,16 @@ void logUnitsAndOthers()
 
         if (DFHack::Units::isCitizen(unit))
         {   
-            Logger::log("Logging citizen unit: ");
              UnitRecord unitRecord = UnitRecord(citizenEvent_id, unit);
              auto unitId = unitsTable.insertData(unitRecord);
         }
         else if (DFHack::Units::isAnimal(unit))
         {
-            Logger::log("Logging animal unit: " );
              UnitRecord unitRecord = UnitRecord(animalEvent_id, unit);
              auto unitId = unitsTable.insertData(unitRecord);
         }
         else
         {
-            Logger::log("Logging other unit: " );
              UnitRecord unitRecord = UnitRecord(otherEvent_id, unit);
              auto unitId = unitsTable.insertData(unitRecord);
         }
@@ -193,7 +189,6 @@ void DataLogger::timePassed(color_ostream& out, void* ptr)
     // Register the tick handler again to continue receiving time updates
     EventManager::registerTick(*timeHandler, 1200);
     auto currentDate = getDate();
-    Logger::log("Time passed event. Current date: " + currentDate.toString());
     
     // log citzens, animals and others every month
     if (currentDate - lastLoggedDateMonth == timePassedData{0,1,0}) // one month has passed since last log
@@ -256,6 +251,8 @@ void DataLogger::unitDeath(color_ostream& out, void* ptr) {
     }
 }
 
+
+
 void DataLogger::itemCreate(color_ostream& out, void* ptr) {
     int32_t item_index = df::item::binsearch_index(df::global::world->items.all, (intptr_t)ptr);
     if ( item_index == -1 ) {
@@ -288,4 +285,25 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
         Logger::log("Item created with no item. Item id: " + std::to_string(itemId));
     }
 
+}
+
+std::vector<UnitRecord> DataLogger::getNewCitizens(int32_t year)
+{
+    std::vector<DB::WhereClause> clauses = {
+        DB::WhereClause("event_id", "IN (SELECT id FROM event_records WHERE event_type = "
+            + std::to_string(static_cast<int>(event_type::NEW_CITIZEN))
+            + " AND year = " + std::to_string(year) + ")")
+    };
+    return unitsTable.queryWhere(clauses);
+}
+
+std::vector<JobRecord> DataLogger::getJobsDone(int32_t year)
+{
+    // from event_records, get the events of type JOB_COMPLETED for the given year, then get the corresponding job records
+    std::vector<DB::WhereClause> clauses = {
+        DB::WhereClause("event_id", "IN (SELECT id FROM event_records WHERE event_type = "
+            + std::to_string(static_cast<int>(event_type::JOB_COMPLETED))
+            + " AND year = " + std::to_string(year) + " AND day = " + std::to_string(23) + ")")
+    };
+    return jobsTable.queryWhere(clauses);
 }

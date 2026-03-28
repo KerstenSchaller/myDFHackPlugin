@@ -29,6 +29,6 @@ add_compile_definitions(_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS)
 list(APPEND PROJECT_SRCS ${PROJECT_HDRS})
 
 
-dfhack_plugin(FortressChronicle ${PROJECT_SRCS} 
-    LINK_LIBRARIES DB sqlite3 DFDataLoggerIncludes
+dfhack_plugin(fortress-chronicle ${PROJECT_SRCS} 
+    LINK_LIBRARIES lua DB sqlite3 DFDataLoggerIncludes
 )

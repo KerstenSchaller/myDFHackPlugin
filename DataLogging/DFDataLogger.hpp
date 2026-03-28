@@ -36,7 +36,7 @@ command_result setupLogging(color_ostream& out, std::vector<std::string>& parame
 
 
 
-
+// event handlers
 void jobCompleted(color_ostream& out, void* _job);
 
 void timePassed(color_ostream& out, void* ptr);
@@ -50,5 +50,9 @@ void syndrome(color_ostream& out, void* ptr);
 void invasion(color_ostream& out, void* ptr);
 
 void setParams(Parameters params);
+
+// query functions
+std::vector<UnitRecord> getNewCitizens(int32_t year);
+std::vector<JobRecord> getJobsDone(int32_t year);
 
 }

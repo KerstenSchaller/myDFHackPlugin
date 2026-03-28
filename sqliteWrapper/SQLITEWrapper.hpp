@@ -89,7 +89,7 @@ public:
 
     std::vector<T> queryWhere(const std::vector<WhereClause>& whereClauses) {
         std::vector<T> results;
-        std::string sqlString = "SELECT * FROM " + T().tableName() + " WHERE ";
+        std::string sqlString = "SELECT " + ModelTraits<T>::insertColumns() + " FROM " + T().tableName() + " WHERE ";
 
         for (size_t i = 0; i < whereClauses.size(); ++i) {
             std::string connector = (i == 0) ? "" : whereClauses[i].connector;
