@@ -37,7 +37,8 @@ std::vector<JobRecord> getJobsDone(int32_t year)
     return DataLogger::getJobsDone(year);
 }
 
-command_result testGetNewCitizens(color_ostream& out, std::vector<std::string>& parameters) {
+command_result testGetNewCitizens(color_ostream& out, std::vector<std::string>& parameters) 
+{
     auto newCitizens = getNewCitizens(110);
     out.print("New citizens in year {}: {}\n", 110, newCitizens.size());
     for (const auto& citizen : newCitizens) 
@@ -48,7 +49,8 @@ command_result testGetNewCitizens(color_ostream& out, std::vector<std::string>& 
     return CR_OK;
 }
 
-command_result testGetJobsDone(color_ostream& out, std::vector<std::string>& parameters) {
+command_result testGetJobsDone(color_ostream& out, std::vector<std::string>& parameters) 
+{
     auto jobsDone = getJobsDone(110);
     out.print("Jobs done in year {}: {}\n", 110, jobsDone.size());
     for (const auto& job : jobsDone) 

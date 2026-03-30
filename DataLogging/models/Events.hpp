@@ -15,7 +15,8 @@
         NEW_CITIZEN = 7,
         PETITION = 8,
         SIEGE_START = 9,
-        SIEGE_END = 10
+        SIEGE_END = 10,
+        ANNOUNCEMENT = 11
     };
 
 class EventRecord : public DB::BaseModel

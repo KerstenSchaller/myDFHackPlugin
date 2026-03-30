@@ -16,7 +16,7 @@ struct timePassedData {
     timePassedData(int16_t day, int16_t month, int16_t year): day(day), month(month), year(year) {}
 
 
-    //overwrite == operator to compare timePassedData, return true if the time passed is greater than or equal to the other timePassedData
+    //overwrite == operator to compare timePassedData, return true if the time passed is  equal to the other timePassedData
     bool operator==(const timePassedData& other) const 
     {
 

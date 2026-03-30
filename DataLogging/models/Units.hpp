@@ -6,6 +6,8 @@
 #include <type_traits>
 #include "SQLITEWrapper.hpp"
 #include "df/history_event_hf_relationship_deniedst.h"
+#include "df/historical_entity.h"
+#include "modules/Translation.h"
 
 using namespace DFHack;
 
@@ -17,6 +19,20 @@ class UnitRecord : public DB::BaseModel
             if (sex == 0)return "Female";
             if (sex == 1)return "Male";
             return "Unknown";
+        }
+        static std::string getCivName(int32_t civ_id, bool inEnglish)
+        {
+            if (civ_id < 0) return "";
+            auto* entity = df::historical_entity::find(civ_id);
+            if (!entity) return "";
+            return DF2UTF(DFHack::Translation::translateName(&entity->name, inEnglish));
+        }
+        static std::string getCivRace(int32_t civ_id)
+        {
+            if (civ_id < 0) return "";
+            auto* entity = df::historical_entity::find(civ_id);
+            if (!entity) return "";
+            return Units::getRaceNameById(entity->race);
         }
     public:
       int64_t event_id;
@@ -31,6 +47,9 @@ class UnitRecord : public DB::BaseModel
       int64_t spouseId;
       bool hostile;
       int64_t unit_id;
+      std::string civ_name;
+      std::string civ_name_english;
+      std::string civ_race;
       bool isAnimal;
       bool isCitizen;
       bool isGuest;
@@ -47,7 +66,10 @@ class UnitRecord : public DB::BaseModel
             UnitRecord(int64_t event_id, const std::string &name, const std::string &name_english,
                                  double age, const std::string &sex, const std::string &race,
                                  const std::string &profession, int64_t fatherId, int64_t motherId,
-                                 int64_t spouseId, bool hostile, int64_t unit_id, bool isAnimal,
+                                 int64_t spouseId, bool hostile, int64_t unit_id,
+                                 const std::string &civ_name, const std::string &civ_name_english,
+                                 const std::string &civ_race,
+                                 bool isAnimal,
                                  bool isCitizen, bool isGuest, bool isMerchant, bool isPet,
                                  bool isResident, bool caged, bool butchered, bool isTame,
                                  int64_t petOwner, int64_t invasion_role)
@@ -63,6 +85,9 @@ class UnitRecord : public DB::BaseModel
                       spouseId(spouseId),
                       hostile(hostile),
                       unit_id(unit_id),
+                      civ_name(civ_name),
+                      civ_name_english(civ_name_english),
+                      civ_race(civ_race),
                       isAnimal(isAnimal),
                       isCitizen(isCitizen),
                       isGuest(isGuest),
@@ -86,6 +111,9 @@ class UnitRecord : public DB::BaseModel
                       spouseId(unit->relationship_ids[df::unit_relationship_type::Spouse]),
                       hostile(Units::isDanger(unit)),
                       unit_id(unit->id),
+                      civ_name(getCivName(unit->civ_id, false)),
+                      civ_name_english(getCivName(unit->civ_id, true)),
+                      civ_race(getCivRace(unit->civ_id)),
                       isAnimal(Units::isAnimal(unit)),
                       isCitizen(Units::isCitizen(unit)),
                       isGuest(Units::isVisitor(unit)),
@@ -105,7 +133,7 @@ class UnitRecord : public DB::BaseModel
 
     std::vector<std::string> columnDefinitions() const override
     {
-        return {"event_id INTEGER", "name TEXT", "name_english TEXT", "age INTEGER", "sex TEXT", "race TEXT", "profession TEXT", "fatherId INTEGER", "motherId INTEGER", "spouseId INTEGER", "hostile BOOLEAN", "unit_id INTEGER", "isAnimal BOOLEAN", "isCitizen BOOLEAN", "isGuest BOOLEAN", "isMerchant BOOLEAN", "isPet BOOLEAN", "isResident BOOLEAN", "caged BOOLEAN", "butchered BOOLEAN", "isTame BOOLEAN", "petOwner INTEGER", "invasion_role INTEGER"};
+        return {"event_id INTEGER", "name TEXT", "name_english TEXT", "age INTEGER", "sex TEXT", "race TEXT", "profession TEXT", "fatherId INTEGER", "motherId INTEGER", "spouseId INTEGER", "hostile BOOLEAN", "unit_id INTEGER", "civ_name TEXT", "civ_name_english TEXT", "civ_race TEXT", "isAnimal BOOLEAN", "isCitizen BOOLEAN", "isGuest BOOLEAN", "isMerchant BOOLEAN", "isPet BOOLEAN", "isResident BOOLEAN", "caged BOOLEAN", "butchered BOOLEAN", "isTame BOOLEAN", "petOwner INTEGER", "invasion_role INTEGER"};
     }
 
 
@@ -116,25 +144,25 @@ struct DB::ModelTraits<UnitRecord>
 {
     static std::string insertColumns()
     {
-        return "event_id,name,name_english,age,sex,race,profession,fatherId,motherId,spouseId,hostile,unit_id,isAnimal,isCitizen,isGuest,isMerchant,isPet,isResident,caged,butchered,isTame,petOwner,invasion_role";
+        return "event_id,name,name_english,age,sex,race,profession,fatherId,motherId,spouseId,hostile,unit_id,civ_name,civ_name_english,civ_race,isAnimal,isCitizen,isGuest,isMerchant,isPet,isResident,caged,butchered,isTame,petOwner,invasion_role";
     }
 
     static std::string insertPlaceholders()
     {
-        return "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?";
+        return "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?";
     }
 
     template<typename Statement>
     static void bindInsert(Statement& statement, const UnitRecord& record)
     {
-        statement << record.event_id << record.name << record.name_english << record.age << record.sex << record.race << record.profession << record.fatherId << record.motherId << record.spouseId << record.hostile << record.unit_id << record.isAnimal << record.isCitizen << record.isGuest << record.isMerchant << record.isPet << record.isResident << record.caged << record.butchered << record.isTame << record.petOwner << record.invasion_role;
+        statement << record.event_id << record.name << record.name_english << record.age << record.sex << record.race << record.profession << record.fatherId << record.motherId << record.spouseId << record.hostile << record.unit_id << record.civ_name << record.civ_name_english << record.civ_race << record.isAnimal << record.isCitizen << record.isGuest << record.isMerchant << record.isPet << record.isResident << record.caged << record.butchered << record.isTame << record.petOwner << record.invasion_role;
     }
 
     static void select(sqlite::database& db, const std::string& sql, std::vector<UnitRecord>& results)
     {
-        db << sql >> [&results](int64_t event_id, const std::string &name, const std::string &name_english, double age, const std::string &sex, const std::string &race, const std::string &profession, int64_t fatherId, int64_t motherId, int64_t spouseId, bool hostile, int64_t unit_id, bool isAnimal, bool isCitizen, bool isGuest, bool isMerchant, bool isPet, bool isResident, bool caged, bool butchered, bool isTame, int64_t petOwner, int64_t invasion_role)
+        db << sql >> [&results](int64_t event_id, const std::string &name, const std::string &name_english, double age, const std::string &sex, const std::string &race, const std::string &profession, int64_t fatherId, int64_t motherId, int64_t spouseId, bool hostile, int64_t unit_id, const std::string &civ_name, const std::string &civ_name_english, const std::string &civ_race, bool isAnimal, bool isCitizen, bool isGuest, bool isMerchant, bool isPet, bool isResident, bool caged, bool butchered, bool isTame, int64_t petOwner, int64_t invasion_role)
         {
-            results.emplace_back(event_id, name, name_english, age, sex, race, profession, fatherId, motherId, spouseId, hostile, unit_id, isAnimal, isCitizen, isGuest, isMerchant, isPet, isResident, caged, butchered, isTame, petOwner, invasion_role);
+            results.emplace_back(event_id, name, name_english, age, sex, race, profession, fatherId, motherId, spouseId, hostile, unit_id, civ_name, civ_name_english, civ_race, isAnimal, isCitizen, isGuest, isMerchant, isPet, isResident, caged, butchered, isTame, petOwner, invasion_role);
         };
     };
 };

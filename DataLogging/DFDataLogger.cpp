@@ -16,6 +16,8 @@
 #include "df/unit.h"
 #include "df/unit_wound.h"
 #include "df/unit_wound_layerst.h"
+#include "df/world_data.h"
+#include "df/world_site.h"
 #include "df/world.h"
 #include "df/death_type.h"
 
@@ -28,6 +30,8 @@
 #include "Items.hpp"
 #include "Deaths.hpp"
 #include "Petitions.hpp"
+#include "Announcements.hpp"
+
 #include "models/Primitives.hpp"
 #include "Sieges.hpp"
 #include "DateAndTime.hpp"
@@ -36,6 +40,9 @@
 DFHack::Plugin *plugin_self = nullptr;
 DataLogger::Parameters params;
 
+// get some meta info
+auto fortressName = DF2UTF(DFHack::Translation::translateName(&df::global::plotinfo->main.fortress_site->name, true));
+auto worldName = DF2UTF(DFHack::Translation::translateName(&df::global::world->world_data->name, true));
 
 DB::Database myDb("myDatabase.db");
 
@@ -45,6 +52,7 @@ DB::Table<UnitRecord> unitsTable = myDb.create_table<UnitRecord>();
 DB::Table<ItemRecord> itemsTable = myDb.create_table<ItemRecord>();
 DB::Table<DeathRecord> deathsTable = myDb.create_table<DeathRecord>();
 DB::Table<PetitionRecord> petitionsTable = myDb.create_table<PetitionRecord>();
+DB::Table<AnnouncementRecord> announcementsTable = myDb.create_table<AnnouncementRecord>();
 DB::Table<SiegeRecord> siegesTable = myDb.create_table<SiegeRecord>();
 
 std::unique_ptr<EventManager::EventHandler> timeHandler = nullptr;
@@ -199,12 +207,13 @@ void DataLogger::timePassed(color_ostream& out, void* ptr)
        lastLoggedDateMonth = currentDate;
     }
     // check for new citizens, books,sieges and petitions every day(logs them)
-    if (currentDate - lastLoggedDateDay == timePassedData{0,0,1}) // one day has passed since last log
+    if (currentDate - lastLoggedDateDay == timePassedData{1,0,0}) // one day has passed since last log
     {
        CitizenLogger::checkForNewCitizens(eventsTable, unitsTable);
        BookLogger::checkForNewBooks(eventsTable, itemsTable);
        PetitionLogger::checkForNewPetitions(eventsTable, petitionsTable);
-       SiegeLogger::checkForNewSieges(eventsTable, siegesTable);
+       SiegeLogger::checkForNewSieges(eventsTable, siegesTable, unitsTable);
+       AnnouncementLogger::checkForNewAnnouncements(eventsTable, announcementsTable);
        lastLoggedDateDay = currentDate;
     }
 }
@@ -268,7 +277,7 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
     auto year = currentDate.year;
     auto tick = currentDate.tick;
 
-    std::string itemDescrs = "Item created: " + DFHack::Items::getReadableDescription(item);
+    std::string itemDescrs = "Item created: " + DF2UTF(DFHack::Items::getReadableDescription(item));
 
     // Log the event
     EventRecord event = EventRecord(day, month, year, tick, event_type::ITEM_CREATED, itemDescrs);
@@ -330,7 +339,8 @@ std::vector<DataLogger::unitDeathInfo> DataLogger::getCitizenDeaths(int32_t year
     "JOIN " + DeathRecord().tableName() + " d ON u.id = d.victim_id "
     "LEFT JOIN " + UnitRecord().tableName() + " k ON d.killer_id = k.id "
     "WHERE u.event_id IN (SELECT id FROM event_records WHERE event_type = "
-     + std::to_string(static_cast<int>(event_type::UNIT_DEATH));   
+     + std::to_string(static_cast<int>(event_type::UNIT_DEATH))
+     + "AND u.isCitizen = 1";   
     
     //if year is -1 get all deaths, otherwise filter by year
     if (year != -1)
