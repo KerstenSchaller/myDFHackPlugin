@@ -4,18 +4,21 @@
 
 #include "df/item.h"
 #include "df/agreement_details_type.h"
-#include "df/army_controller.h"
-#include "df/historical_figure.h"
+
+
+#include "df/world.h"
+#include "df/plotinfost.h"
+#include "modules/gui.h"
+
 #include "models/Events.hpp"
 #include "models/Units.hpp"
 #include "models/Items.hpp"
 #include "models/Petitions.hpp"
 #include "models/Announcements.hpp"
-#include "df/world.h"
-#include "df/plotinfost.h"
-
 #include "SQLITEWrapper.hpp"
 #include "DateAndTime.hpp"
+#include "Helper.hpp"
+
 
 #include "models/Sieges.hpp"
 
@@ -55,7 +58,7 @@ class BookLogger
     static size_t lastLoggedIndex;
 
 public:
-    static void checkForNewBooks(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<ItemRecord>> itemsTable)
+    static void checkForNewBooks(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<ItemRecord>> itemsTable, std::shared_ptr<DB::Table<UnitRecord>> unitsTable)
     {
         if (firstCheckDone == false)
         {
@@ -79,7 +82,7 @@ public:
                 return;
             }
 
-            uint64_t bookId = reinterpret_cast<uint64_t>(item);
+            uint64_t bookId = item->id;
             // Check if we've already logged this book
             if (seenBookIds.count(bookId))
             {
@@ -102,9 +105,23 @@ public:
                 auto event_id = eventsTable->insertData(event);
 
                 // log the book details
-                ItemRecord record = ItemRecord(event_id, item);
-                record.bookTitle = DF2UTF(bookTitle);
-                itemsTable->insertData(record);
+                ItemRecord itemRecord = ItemRecord(event_id, item);
+                itemRecord.bookTitle = DF2UTF(bookTitle);
+                auto itemId = itemsTable->insertData(itemRecord);
+
+                auto makerUnit = getMakerFromItem(item);
+                if (makerUnit)
+                {
+                    UnitRecord unitRecord = UnitRecord(event_id, makerUnit);
+                    auto unitId = unitsTable->insertData(unitRecord);
+                }
+                else
+                {
+                    Logger::log("Book created with no maker. Item tid: " + std::to_string(itemId));
+                }
+
+
+                Gui::showAnnouncement("A new book has been created: " + UTF2DF(bookTitle), COLOR_CYAN, true);
             }
         });
     }
@@ -265,29 +282,11 @@ class SiegeLogger
     static bool firstCheckDone;
     static size_t lastLoggedIndex;
 
-    static df::army_controller* findArmyController(int32_t controller_id)
-    {
-        for (auto* ac : df::global::world->army_controllers.all)
-        {
-            if (ac && ac->id == controller_id)
-                return ac;
-        }
-        return nullptr;
-    }
+
 
     public:
     // Returns the commander unit for a siege (nullptr if not found or not on map)
-    static df::unit* getCommanderFromSiege(df::invasion_info* siege)
-    {
-        if (!siege) return nullptr;
-        auto* ac = findArmyController(siege->origin_master_army_controller_id);
-        if (!ac) return nullptr;
-        int32_t hfId = (ac->commander_hf != -1) ? ac->commander_hf : ac->master_hf;
-        if (hfId == -1) return nullptr;
-        auto* histFig = df::historical_figure::find(hfId);
-        if (!histFig || histFig->unit_id == -1) return nullptr;
-        return df::unit::find(histFig->unit_id);
-    }
+
 
 
     static void checkForNewSieges(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<SiegeRecord>> siegesTable, std::shared_ptr<DB::Table<UnitRecord>> unitsTable)
