@@ -24,8 +24,20 @@ DFHACK_PLUGIN("fortress-chronicle");
 //auto fortressName = DF2UTF(DFHack::Translation::translateName(&df::global::plotinfo->main.fortress_site->name, true));
 //auto worldName = DF2UTF(DFHack::Translation::translateName(&df::global::world->world_data->name, true));
 
-
-
+// is called by DFHack when the plugin is loaded, used to set up commands and initialize logging
+DFhackCExport command_result plugin_onstatechange(color_ostream &out, state_change_event event) {
+    switch (event) {
+        case DFHack::SC_WORLD_LOADED:
+            DataLogger::setupLogging();
+            break;
+        case DFHack::SC_WORLD_UNLOADED:
+            EventManager::unregisterAll(plugin_self);
+            break;
+        default:
+             break;
+    }
+    return CR_OK;
+}
 
 std::vector<UnitRecord> getNewCitizens(int32_t year)
 {
@@ -73,7 +85,7 @@ DFhackCExport command_result plugin_init(color_ostream &out, std::vector<PluginC
     params.dbName = "myDatabase.db";
     DataLogger::setParams(params);
 
-    commands.push_back(PluginCommand("startChronicle", "Sets up logging to database", DataLogger::setupLogging));
+    //commands.push_back(PluginCommand("startChronicle", "Sets up logging to database", DataLogger::setupLogging));
     commands.push_back(PluginCommand("getNewCitizens", "Gets new citizens for a given year", testGetNewCitizens));
     commands.push_back(PluginCommand("getJobsDone", "Gets completed jobs for a given year", testGetJobsDone));
     return CR_OK;

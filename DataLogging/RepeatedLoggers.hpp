@@ -19,16 +19,32 @@
 
 #include "models/Sieges.hpp"
 
-inline constexpr size_t kRecentEntryLimit = 15;
-
 template <typename Container, typename Callback>
-inline void forEachRecentEntry(const Container &entries, Callback &&callback)
+inline void forEachNewEntrySince(const Container &entries, size_t &lastLoggedIndex, Callback &&callback)
 {
-    size_t startIndex = entries.size() > kRecentEntryLimit ? entries.size() - kRecentEntryLimit : 0;
-    for (size_t index = startIndex; index < entries.size(); ++index)
+    if (entries.empty())
     {
-        callback(entries[index]);
+        lastLoggedIndex = 0;
+        return;
     }
+
+    if (lastLoggedIndex < entries.size())
+    {
+        for (size_t index = lastLoggedIndex; index < entries.size(); ++index)
+        {
+            callback(entries[index]);
+        }
+    }
+    else
+    {
+        // Ringbuffer-safe fallback: if the size did not advance (or reset), re-check all entries.
+        for (size_t index = 0; index < entries.size(); ++index)
+        {
+            callback(entries[index]);
+        }
+    }
+
+    lastLoggedIndex = entries.size();
 }
 
 
@@ -36,9 +52,10 @@ class BookLogger
 {
     static std::unordered_set<uint64_t> seenBookIds;
     static bool firstCheckDone;
+    static size_t lastLoggedIndex;
 
 public:
-    static void checkForNewBooks(DB::Table<EventRecord>& eventsTable, DB::Table<ItemRecord>& itemsTable)
+    static void checkForNewBooks(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<ItemRecord>> itemsTable)
     {
         if (firstCheckDone == false)
         {
@@ -51,11 +68,12 @@ public:
                     seenBookIds.insert(reinterpret_cast<uint64_t>(item));
                 }
             }
+            lastLoggedIndex = allItems.size();
             firstCheckDone = true;
             return;
         }
         auto allItems = df::global::world->items.all;
-        forEachRecentEntry(allItems, [&](auto *item) {
+        forEachNewEntrySince(allItems, lastLoggedIndex, [&](auto *item) {
             if (!item)
             {
                 return;
@@ -81,12 +99,12 @@ public:
                 auto year = currentDate.year;
                 auto tick = currentDate.tick;
                 EventRecord event = EventRecord(day, month, year, tick, event_type::ITEM_CREATED, "Book created: " + DF2UTF(bookTitle));
-                auto event_id = eventsTable.insertData(event);
+                auto event_id = eventsTable->insertData(event);
 
                 // log the book details
                 ItemRecord record = ItemRecord(event_id, item);
                 record.bookTitle = DF2UTF(bookTitle);
-                itemsTable.insertData(record);
+                itemsTable->insertData(record);
             }
         });
     }
@@ -96,9 +114,10 @@ class CitizenLogger
 {
     static std::unordered_set<uint64_t> seenUnitIds;
     static bool firstCheckDone;
+    static size_t lastLoggedIndex;
 
     public:
-    static void checkForNewCitizens(DB::Table<EventRecord>& eventsTable, DB::Table<UnitRecord>& unitsTable)
+    static void checkForNewCitizens(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<UnitRecord>> unitsTable)
     {
         if (firstCheckDone == false)
         {
@@ -111,12 +130,13 @@ class CitizenLogger
                     seenUnitIds.insert(reinterpret_cast<uint64_t>(unit));
                 }
             }
+            lastLoggedIndex = allUnits.size();
             firstCheckDone = true;
             return;
         }
 
         auto allUnits = df::global::world->units.active;
-        forEachRecentEntry(allUnits, [&](auto *unit) {
+        forEachNewEntrySince(allUnits, lastLoggedIndex, [&](auto *unit) {
             if (!unit)
             {
                 return;
@@ -141,11 +161,11 @@ class CitizenLogger
                 auto year = currentDate.year;
                 auto tick = currentDate.tick;
                 EventRecord event = EventRecord(day, month, year, tick, event_type::NEW_CITIZEN, "New Citizens detected");
-                auto event_id = eventsTable.insertData(event);
+                auto event_id = eventsTable->insertData(event);
 
                 // log the citizen details
                 UnitRecord record = UnitRecord(event_id, unit);
-                unitsTable.insertData(record);
+                unitsTable->insertData(record);
             }
         });
     }
@@ -156,6 +176,7 @@ class PetitionLogger
 {
     static std::unordered_set<uint64_t> seenPetitionDetails;
     static bool firstCheckDone;
+    static size_t lastLoggedIndex;
 
     static bool isTrackedType(df::agreement_details_type type)
     {
@@ -173,7 +194,7 @@ class PetitionLogger
     }
 
 public:
-    static void checkForNewPetitions(DB::Table<EventRecord>& eventsTable, DB::Table<PetitionRecord>& petitionsTable)
+    static void checkForNewPetitions(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<PetitionRecord>> petitionsTable)
     {
         if (firstCheckDone == false)
         {
@@ -195,26 +216,28 @@ public:
                     seenPetitionDetails.insert(makeDetailKey(agreement->id, details->id));
                 }
             }
+            lastLoggedIndex = agreements.size();
             firstCheckDone = true;
             return;
         }
         auto agreements = df::global::world->agreements.all;
-        forEachRecentEntry(agreements, [&](auto *agreement) {
+        forEachNewEntrySince(agreements, lastLoggedIndex, [&](auto *agreement) {
             if (!agreement)
             {
                 return;
             }
 
-            forEachRecentEntry(agreement->details, [&](auto *details) {
+            for (auto *details : agreement->details)
+            {
                 if (!details || !isTrackedType(details->type))
                 {
-                    return;
+                    continue;
                 }
 
                 uint64_t detailKey = makeDetailKey(agreement->id, details->id);
                 if (!seenPetitionDetails.insert(detailKey).second)
                 {
-                    return;
+                    continue;
                 }
 
                 auto currentDate = getDate();
@@ -225,10 +248,10 @@ public:
                     currentDate.tick,
                     event_type::PETITION,
                     std::string("New petition: ") + ENUM_KEY_STR(agreement_details_type, details->type));
-                auto event_id = eventsTable.insertData(event);
+                auto event_id = eventsTable->insertData(event);
 
-                petitionsTable.insertData(PetitionRecord(event_id, agreement, details));
-            });
+                petitionsTable->insertData(PetitionRecord(event_id, agreement, details));
+            }
         });
     }
 
@@ -240,6 +263,7 @@ class SiegeLogger
     static std::unordered_set<uint64_t> seenSiegeStartIds;
     static std::unordered_set<uint64_t> seenSiegeEndIds;
     static bool firstCheckDone;
+    static size_t lastLoggedIndex;
 
     static df::army_controller* findArmyController(int32_t controller_id)
     {
@@ -266,7 +290,7 @@ class SiegeLogger
     }
 
 
-    static void checkForNewSieges(DB::Table<EventRecord>& eventsTable, DB::Table<SiegeRecord>& siegesTable,DB::Table<UnitRecord>& unitsTable)
+    static void checkForNewSieges(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<SiegeRecord>> siegesTable, std::shared_ptr<DB::Table<UnitRecord>> unitsTable)
     {
         if (firstCheckDone == false)
         {
@@ -289,12 +313,13 @@ class SiegeLogger
                     }
                 }
             }
+            lastLoggedIndex = sieges.size();
             firstCheckDone = true;
             return;
         }
         auto sieges = df::global::plotinfo->invasions.list;
 
-        forEachRecentEntry(sieges, [&](auto *siege) {
+        forEachNewEntrySince(sieges, lastLoggedIndex, [&](auto *siege) {
             if (!siege)
             {
                 return;
@@ -310,17 +335,17 @@ class SiegeLogger
                 // Log the event
                 auto currentDate = getDate();
                 EventRecord event = EventRecord(currentDate.day, currentDate.month, currentDate.year, currentDate.tick, event_type::SIEGE_START, "New Siege detected");
-                auto event_id = eventsTable.insertData(event);
+                auto event_id = eventsTable->insertData(event);
 
                 // log the siege details
                 SiegeRecord record = SiegeRecord(event_id, siege);
-                siegesTable.insertData(record);
+                siegesTable->insertData(record);
 
                 auto commander = getCommanderFromSiege(siege);
                 if (commander)
                 {
                     UnitRecord unitRecord(event_id, commander);
-                    unitsTable.insertData(unitRecord);
+                    unitsTable->insertData(unitRecord);
                 }
             }
             // Check for siege that ended (SIEGE_END)
@@ -331,11 +356,11 @@ class SiegeLogger
                 // Log the event
                 auto currentDate = getDate();
                 EventRecord event = EventRecord(currentDate.day, currentDate.month, currentDate.year, currentDate.tick, event_type::SIEGE_END, "Siege ended");
-                auto event_id = eventsTable.insertData(event);
+                auto event_id = eventsTable->insertData(event);
 
                 // log the siege details
                 SiegeRecord record = SiegeRecord(event_id, siege);
-                siegesTable.insertData(record);
+                siegesTable->insertData(record);
             }
         });
     }
@@ -345,9 +370,10 @@ class AnnouncementLogger
 {
     static std::unordered_set<uint64_t> seenAnnouncementIds;
     static bool firstCheckDone;
+    static size_t lastLoggedIndex;
 
     public:
-    static void checkForNewAnnouncements(DB::Table<EventRecord>& eventsTable, DB::Table<AnnouncementRecord>& announcementsTable)
+    static void checkForNewAnnouncements(std::shared_ptr<DB::Table<EventRecord>> eventsTable, std::shared_ptr<DB::Table<AnnouncementRecord>> announcementsTable)
     {
         if (firstCheckDone == false)
         {
@@ -360,11 +386,12 @@ class AnnouncementLogger
                     seenAnnouncementIds.insert(reinterpret_cast<uint64_t>(announcement));
                 }
             }
+            lastLoggedIndex = announcements.size();
             firstCheckDone = true;
             return;
         }
         auto announcements = df::global::world->status.reports;
-        forEachRecentEntry(announcements, [&](auto *announcement) {
+        forEachNewEntrySince(announcements, lastLoggedIndex, [&](auto *announcement) {
             if (!announcement)
             {
                 return;
@@ -383,11 +410,11 @@ class AnnouncementLogger
             // Log the event
             auto currentDate = getDate();
             EventRecord event = EventRecord(currentDate.day, currentDate.month, currentDate.year, currentDate.tick, event_type::ANNOUNCEMENT, "New Announcement detected: ");
-            auto event_id = eventsTable.insertData(event);
+            auto event_id = eventsTable->insertData(event);
 
             // log the announcement details
             AnnouncementRecord record = AnnouncementRecord(event_id, announcement);
-            announcementsTable.insertData(record);
+            announcementsTable->insertData(record);
         });
     }
 };

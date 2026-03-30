@@ -85,6 +85,7 @@ template<typename T>
 class Table {
     sqlite::database& db;
 public:
+    Table() = default;
     Table(sqlite::database& db) : db(db) {}
 
 
@@ -130,6 +131,7 @@ public:
 class Database {
     sqlite::database db;
     public:
+        Database() = default;
         Database(const std::string& db_name) : db(db_name){ }
 
         template<typename T>

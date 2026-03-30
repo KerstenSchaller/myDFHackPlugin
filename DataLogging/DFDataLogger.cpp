@@ -2,6 +2,7 @@
 #include "DFDataLogger.hpp"
 
 #include <memory>
+#include <filesystem>
 
 #include "modules/World.h"
 #include "modules/Job.h"
@@ -36,24 +37,27 @@
 #include "Sieges.hpp"
 #include "DateAndTime.hpp"
 
+
 /// set plugin self pointer for use in event handlers (to be set from main.cpp)
 DFHack::Plugin *plugin_self = nullptr;
 DataLogger::Parameters params;
 
-// get some meta info
-auto fortressName = DF2UTF(DFHack::Translation::translateName(&df::global::plotinfo->main.fortress_site->name, true));
-auto worldName = DF2UTF(DFHack::Translation::translateName(&df::global::world->world_data->name, true));
 
-DB::Database myDb("myDatabase.db");
 
-DB::Table<EventRecord> eventsTable = myDb.create_table<EventRecord>();
-DB::Table<JobRecord> jobsTable = myDb.create_table<JobRecord>();
-DB::Table<UnitRecord> unitsTable = myDb.create_table<UnitRecord>();
-DB::Table<ItemRecord> itemsTable = myDb.create_table<ItemRecord>();
-DB::Table<DeathRecord> deathsTable = myDb.create_table<DeathRecord>();
-DB::Table<PetitionRecord> petitionsTable = myDb.create_table<PetitionRecord>();
-DB::Table<AnnouncementRecord> announcementsTable = myDb.create_table<AnnouncementRecord>();
-DB::Table<SiegeRecord> siegesTable = myDb.create_table<SiegeRecord>();
+//dfhack-config/df_chronicle/myDatabase.db
+//std::string dbPath = "dfhack-config/df_chronicle/" + worldName + "_" + fortressName + ".db";
+
+
+    std::shared_ptr<DB::Database> myDb = nullptr;
+
+    std::shared_ptr<DB::Table<EventRecord>> eventsTable = nullptr;
+    std::shared_ptr<DB::Table<JobRecord>> jobsTable = nullptr;
+    std::shared_ptr<DB::Table<UnitRecord>> unitsTable = nullptr;
+    std::shared_ptr<DB::Table<ItemRecord>> itemsTable = nullptr;
+    std::shared_ptr<DB::Table<DeathRecord>> deathsTable = nullptr;
+    std::shared_ptr<DB::Table<PetitionRecord>> petitionsTable = nullptr;
+    std::shared_ptr<DB::Table<AnnouncementRecord>> announcementsTable = nullptr;
+    std::shared_ptr<DB::Table<SiegeRecord>> siegesTable = nullptr;
 
 std::unique_ptr<EventManager::EventHandler> timeHandler = nullptr;
 
@@ -76,8 +80,26 @@ void DataLogger::setParams(Parameters _params)
 }
 
 /* Register events */
-command_result DataLogger::setupLogging(color_ostream& out, std::vector<std::string>& parameters) 
+command_result DataLogger::setupLogging() 
 {
+    // get some meta info
+    auto fortressName = DF2UTF(DFHack::Translation::translateName(&df::global::plotinfo->main.fortress_site->name, true));
+    auto worldName = DF2UTF(DFHack::Translation::translateName(&df::global::world->world_data->name, true));
+    //replace spaces with underscores for file naming
+    std::replace(fortressName.begin(), fortressName.end(), ' ', '_');
+    std::replace(worldName.begin(), worldName.end(), ' ', '_');
+
+    myDb = std::make_shared<DB::Database>(std::string("dfhack-config/df_chronicle/" + worldName  + "_" + fortressName + ".db"));
+
+    eventsTable = std::make_shared<DB::Table<EventRecord>>(myDb->create_table<EventRecord>());
+    jobsTable = std::make_shared<DB::Table<JobRecord>>(myDb->create_table<JobRecord>());
+    unitsTable = std::make_shared<DB::Table<UnitRecord>>(myDb->create_table<UnitRecord>());
+    itemsTable = std::make_shared<DB::Table<ItemRecord>>(myDb->create_table<ItemRecord>());
+    deathsTable = std::make_shared<DB::Table<DeathRecord>>(myDb->create_table<DeathRecord>());
+    petitionsTable = std::make_shared<DB::Table<PetitionRecord>>(myDb->create_table<PetitionRecord>());
+    announcementsTable = std::make_shared<DB::Table<AnnouncementRecord>>(myDb->create_table<AnnouncementRecord>());
+    siegesTable = std::make_shared<DB::Table<SiegeRecord>>(myDb->create_table<SiegeRecord>());
+
     EventManager::EventHandler completeHandler(plugin_self, jobCompleted, 0);
     timeHandler = std::make_unique<EventManager::EventHandler>(plugin_self, timePassed, 1);
     EventManager::EventHandler deathHandler(plugin_self, unitDeath, 500);
@@ -94,7 +116,6 @@ command_result DataLogger::setupLogging(color_ostream& out, std::vector<std::str
     EventManager::registerListener(EventManager::EventType::UNIT_DEATH, deathHandler);
     EventManager::registerListener(EventManager::EventType::ITEM_CREATED, itemHandler);
     EventManager::registerTick(*timeHandler, 1200);
-    out.print("Events registered.\n");
 
     lastLoggedDateMonth = getDate();
     lastLoggedDateDay = lastLoggedDateMonth;
@@ -120,7 +141,7 @@ void DataLogger::jobCompleted(color_ostream& out, void* _job)
 
     // Log the event
     EventRecord event = EventRecord(day, month, year, tick, event_type::JOB_COMPLETED, jobTypeStr);
-    auto event_id = eventsTable.insertData(event);
+    auto event_id = eventsTable->insertData(event);
 
     
     //log the worker details if available
@@ -129,7 +150,7 @@ void DataLogger::jobCompleted(color_ostream& out, void* _job)
     if (worker) 
     {
         UnitRecord unitRecord = UnitRecord(event_id, worker);
-        workerId = unitsTable.insertData(unitRecord);
+        workerId = unitsTable->insertData(unitRecord);
     }
     else
     {
@@ -141,7 +162,7 @@ void DataLogger::jobCompleted(color_ostream& out, void* _job)
     
     // log the corresponding job details
     JobRecord record = JobRecord(event_id, workerId, jobTypeStr, jobType, job->mat_type, job->mat_index);
-    auto job_id = jobsTable.insertData(record);
+    auto job_id = jobsTable->insertData(record);
 
 }
 
@@ -159,13 +180,13 @@ void logUnitsAndOthers()
     auto tick = currentDate.tick;
 
     EventRecord citizenEvent = EventRecord(day, month, year, tick, event_type::MONTHLY_CITIZEN_LOG, "Log of all active citizens");    
-    auto citizenEvent_id = eventsTable.insertData(citizenEvent);
+    auto citizenEvent_id = eventsTable->insertData(citizenEvent);
 
     EventRecord animalEvent = EventRecord(day, month, year, tick, event_type::MONTHLY_ANIMAL_LOG, "Log of all active animals");    
-    auto animalEvent_id = eventsTable.insertData(animalEvent);
+    auto animalEvent_id = eventsTable->insertData(animalEvent);
 
     EventRecord otherEvent = EventRecord(day, month, year, tick, event_type::MONTHLY_OTHER_LOG, "Log of other active units");    
-    auto otherEvent_id = eventsTable.insertData(otherEvent);
+    auto otherEvent_id = eventsTable->insertData(otherEvent);
 
 
     // log the units
@@ -176,17 +197,17 @@ void logUnitsAndOthers()
         if (DFHack::Units::isCitizen(unit))
         {   
              UnitRecord unitRecord = UnitRecord(citizenEvent_id, unit);
-             auto unitId = unitsTable.insertData(unitRecord);
+             auto unitId = unitsTable->insertData(unitRecord);
         }
         else if (DFHack::Units::isAnimal(unit))
         {
              UnitRecord unitRecord = UnitRecord(animalEvent_id, unit);
-             auto unitId = unitsTable.insertData(unitRecord);
+             auto unitId = unitsTable->insertData(unitRecord);
         }
         else
         {
              UnitRecord unitRecord = UnitRecord(otherEvent_id, unit);
-             auto unitId = unitsTable.insertData(unitRecord);
+             auto unitId = unitsTable->insertData(unitRecord);
         }
 
     }
@@ -230,14 +251,14 @@ void DataLogger::unitDeath(color_ostream& out, void* ptr) {
     auto year = currentDate.year;
     auto tick = currentDate.tick;
     EventRecord event = EventRecord(day, month, year, tick, event_type::UNIT_DEATH, "Unit death");
-    auto event_id = eventsTable.insertData(event);
+    auto event_id = eventsTable->insertData(event);
 
     // log victim unit details if available
     int32_t victimId = -1;
     if (unit) 
     {
         UnitRecord unitRecord = UnitRecord(event_id, unit);
-        victimId = unitsTable.insertData(unitRecord);
+        victimId = unitsTable->insertData(unitRecord);
     }
 
     // log killer unit details if available
@@ -246,7 +267,7 @@ void DataLogger::unitDeath(color_ostream& out, void* ptr) {
     if (incidentInfo.killer)
     {
         UnitRecord unitRecord = UnitRecord(event_id, incidentInfo.killer);
-        killerId = unitsTable.insertData(unitRecord);
+        killerId = unitsTable->insertData(unitRecord);
     }
 
     // log the corresponding death details if available
@@ -254,7 +275,7 @@ void DataLogger::unitDeath(color_ostream& out, void* ptr) {
     {
         df::death_type death_cause = incidentInfo.death_cause;
         DeathRecord deathRecord = DeathRecord(event_id, ENUM_KEY_STR(death_type,death_cause), victimId, killerId);
-        auto death_id = deathsTable.insertData(deathRecord);
+        auto death_id = deathsTable->insertData(deathRecord);
     }
     else
     {
@@ -281,7 +302,7 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
 
     // Log the event
     EventRecord event = EventRecord(day, month, year, tick, event_type::ITEM_CREATED, itemDescrs);
-    auto event_id = eventsTable.insertData(event);
+    auto event_id = eventsTable->insertData(event);
 
 
     // log the corresponding item details if available
@@ -289,7 +310,7 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
     if (item) 
     {
         ItemRecord itemRecord = ItemRecord(event_id, item);
-        itemId = itemsTable.insertData(itemRecord);
+        itemId = itemsTable->insertData(itemRecord);
     }
     else
     {
@@ -306,7 +327,7 @@ std::vector<int32_t> DataLogger::getUniqueYears()
     std::string sqlString = "SELECT DISTINCT year FROM event_records;";
     
 
-    return myDb.query<int32_t>(sqlString);
+    return myDb->query<int32_t>(sqlString);
 }
 
 std::vector<UnitRecord> DataLogger::getNewCitizens(int32_t year)
@@ -328,7 +349,7 @@ std::vector<UnitRecord> DataLogger::getNewCitizens(int32_t year)
     };
     
     
-    return unitsTable.queryWhere(clauses);
+    return unitsTable->queryWhere(clauses);
 }
 
 std::vector<DataLogger::unitDeathInfo> DataLogger::getCitizenDeaths(int32_t year)
@@ -352,7 +373,7 @@ std::vector<DataLogger::unitDeathInfo> DataLogger::getCitizenDeaths(int32_t year
         sqlString += ")";
     }
 
-        myDb.query(sqlString, [&deathInfos](const std::string& victimName, double victimAge, const std::string& victimSex, const std::string& victimRace, const std::string& victimProfession, const std::string& causeOfDeath, const std::string& killerName, double killerAge, const std::string& killerSex, const std::string& killerRace, const std::string& killerProfession)
+        myDb->query(sqlString, [&deathInfos](const std::string& victimName, double victimAge, const std::string& victimSex, const std::string& victimRace, const std::string& victimProfession, const std::string& causeOfDeath, const std::string& killerName, double killerAge, const std::string& killerSex, const std::string& killerRace, const std::string& killerProfession)
         {
             DataLogger::unitDeathInfo info;
             info.victim.name = victimName;
@@ -381,5 +402,5 @@ std::vector<JobRecord> DataLogger::getJobsDone(int32_t year)
             + std::to_string(static_cast<int>(event_type::JOB_COMPLETED))
             + " AND year = " + std::to_string(year) + " AND day = " + std::to_string(23) + ")")
     };
-    return jobsTable.queryWhere(clauses);
+    return jobsTable->queryWhere(clauses);
 }

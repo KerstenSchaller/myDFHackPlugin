@@ -32,7 +32,7 @@ struct Parameters
 
 
 /* Register events */
-command_result setupLogging(color_ostream& out, std::vector<std::string>& parameters);
+command_result setupLogging();
 
 
 
