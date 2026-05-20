@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_library(sqlite3 third_party/sqlite/sqlite3.c)
 
 # header only
-add_library(DB INTERFACE SQLiteWrapper.hpp)
+add_library(DB INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}//SQLiteWrapper.hpp)
 target_include_directories(DB INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr)
 target_include_directories(DB INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 

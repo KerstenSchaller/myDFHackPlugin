@@ -31,6 +31,7 @@
 #include "Helper.hpp"
 #include "Items.hpp"
 #include "Jobs.hpp"
+#include "Logger.hpp"
 #include "models/Primitives.hpp"
 #include "Petitions.hpp"
 #include "QueryFunctions.hpp"
@@ -62,8 +63,16 @@ std::unique_ptr<EventManager::EventHandler> timeHandler = nullptr;
 date lastLoggedDateMonth;
 date lastLoggedDateDay;
 
-
-
+ProfilerContainer profilerContainer;
+Profiler unitsProfiler("UnitsLogger");
+Profiler bookLoggerProfiler("BookLogger");
+Profiler citizenLoggerProfiler("CitizenLogger");
+Profiler petitionLoggerProfiler("PetitionLogger");
+Profiler siegeLoggerProfiler("SiegeLogger");
+Profiler announcementLoggerProfiler("AnnouncementLogger");
+Profiler jobLoggerProfiler("JobLogger");
+Profiler deathLoggerProfiler("DeathLogger");
+Profiler itemLoggerProfiler("ItemLogger");
 
 
 //forward declaration for this file
@@ -85,6 +94,9 @@ command_result DataLogger::setupLogging()
     //replace spaces with underscores for file naming
     std::replace(fortressName.begin(), fortressName.end(), ' ', '_');
     std::replace(worldName.begin(), worldName.end(), ' ', '_');
+    Logger::setName(worldName + "_" + fortressName);
+
+    Logger::log("Setting up logging for world: " + worldName + ", fortress: " + fortressName);
 
     myDb = std::make_shared<DB::Database>(std::string("dfhack-config/df_chronicle/" + worldName  + "_" + fortressName + ".db"));
 
@@ -96,6 +108,17 @@ command_result DataLogger::setupLogging()
     petitionsTable = std::make_shared<DB::Table<PetitionRecord>>(myDb->create_table<PetitionRecord>());
     announcementsTable = std::make_shared<DB::Table<AnnouncementRecord>>(myDb->create_table<AnnouncementRecord>());
     siegesTable = std::make_shared<DB::Table<SiegeRecord>>(myDb->create_table<SiegeRecord>());
+
+    // Initialize profilers
+    profilerContainer.addProfiler(std::make_shared<Profiler>(unitsProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(bookLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(citizenLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(petitionLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(siegeLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(announcementLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(jobLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(deathLoggerProfiler));
+    profilerContainer.addProfiler(std::make_shared<Profiler>(itemLoggerProfiler));
 
     EventManager::EventHandler completeHandler(plugin_self, jobCompleted, 0);
     timeHandler = std::make_unique<EventManager::EventHandler>(plugin_self, timePassed, 1);
@@ -128,9 +151,10 @@ command_result DataLogger::setupLogging()
 void DataLogger::jobCompleted(color_ostream& out, void* _job) 
 {
 
+    jobLoggerProfiler.start();
     df::job* job = (df::job*)_job;
     EventCallbacks::logJob(job, eventsTable, jobsTable, unitsTable);
-
+    jobLoggerProfiler.stop();
 }
 
 
@@ -195,26 +219,46 @@ void DataLogger::timePassed(color_ostream& out, void* ptr)
     // check for new citizens, books,sieges and petitions every day(logs them)
     if (currentDate - lastLoggedDateDay == timePassedData{1,0,0}) // one day has passed since last log
     {
+        citizenLoggerProfiler.start();
        CitizenLogger::checkForNewCitizens(eventsTable, unitsTable);
+       citizenLoggerProfiler.stop();
+       bookLoggerProfiler.start();
        BookLogger::checkForNewBooks(eventsTable, itemsTable,unitsTable);
+       bookLoggerProfiler.stop();
+       petitionLoggerProfiler.start();
        PetitionLogger::checkForNewPetitions(eventsTable, petitionsTable);
+       petitionLoggerProfiler.stop();
+       siegeLoggerProfiler.start();
        SiegeLogger::checkForNewSieges(eventsTable, siegesTable, unitsTable);
+       siegeLoggerProfiler.stop();
+       announcementLoggerProfiler.start();
        AnnouncementLogger::checkForNewAnnouncements(eventsTable, announcementsTable);
+       announcementLoggerProfiler.stop();
        lastLoggedDateDay = currentDate;
     }
+    if (currentDate - lastLoggedDateDay == timePassedData{1,0,0}) // ten days have passed since last log
+    {
+        profilerContainer.logAverages();
+    }
+
 }
 
-void DataLogger::unitDeath(color_ostream& out, void* ptr) {
+void DataLogger::unitDeath(color_ostream& out, void* ptr) 
+{
+    deathLoggerProfiler.start();
+
     out.print("Death: {}\n", (intptr_t)(ptr));
     int32_t unitId = (intptr_t)ptr;
     auto unit = df::unit::find(unitId);
     EventCallbacks::logUnitDeath(unit, eventsTable, unitsTable, deathsTable);
-
+    deathLoggerProfiler.stop();
 }
 
 
 
-void DataLogger::itemCreate(color_ostream& out, void* ptr) {
+void DataLogger::itemCreate(color_ostream& out, void* ptr) 
+{
+    itemLoggerProfiler.start();
     int32_t item_index = df::item::binsearch_index(df::global::world->items.all, (intptr_t)ptr);
     if ( item_index == -1 ) {
         out.print("{}: Error.\n", __FILE__, __LINE__);
@@ -222,6 +266,6 @@ void DataLogger::itemCreate(color_ostream& out, void* ptr) {
     df::item* item = df::global::world->items.all[item_index];
 
     EventCallbacks::logItems(item, eventsTable, itemsTable, unitsTable);
-
+    itemLoggerProfiler.stop();
 }
 

@@ -11,6 +11,7 @@ add_subdirectory(DataLogging) # included as sources and header files, as well as
 # A list of source files
 set(PROJECT_SRCS
     main.cpp
+
     ${DFDATALOGGER_SOURCES}
 )
 

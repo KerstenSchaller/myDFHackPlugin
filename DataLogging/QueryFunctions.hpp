@@ -16,6 +16,28 @@ std::vector<int32_t> DataLogger::getUniqueYears()
     return myDb->query<int32_t>(sqlString);
 }
 
+std::vector<DataLogger::unitBirthInfo> DataLogger::getCitizenBirths(int32_t year)
+{
+    auto newCitizens = getNewCitizens(year); 
+    std::vector<DataLogger::unitBirthInfo> birthInfos;
+    for (const auto& citizen : newCitizens)
+    {
+        if(citizen.age < 0.01) // if age is less than 0.01, consider it a newborn and get parents
+        {
+            auto newBorn = citizen;
+            auto mother = unitsTable->queryWhere({DB::WhereClause("unit_id", "=" + std::to_string(citizen.motherId))})[0];
+            auto father = unitsTable->queryWhere({DB::WhereClause("unit_id", "=" + std::to_string(citizen.fatherId))})[0];
+            DataLogger::unitBirthInfo birthInfo;
+            birthInfo.newborn = newBorn;
+            birthInfo.mother = mother;
+            birthInfo.father = father;
+            birthInfos.push_back(birthInfo);
+        }
+    }
+    return birthInfos;
+}
+
+
 std::vector<UnitRecord> DataLogger::getNewCitizens(int32_t year)
 {
     std::string sqlString = "IN (SELECT id FROM event_records WHERE event_type = "
@@ -47,7 +69,7 @@ std::vector<DataLogger::unitDeathInfo> DataLogger::getCitizenDeaths(int32_t year
     "LEFT JOIN " + UnitRecord().tableName() + " k ON d.killer_id = k.id "
     "WHERE u.event_id IN (SELECT id FROM event_records WHERE event_type = "
      + std::to_string(static_cast<int>(event_type::UNIT_DEATH))
-     + "AND u.isCitizen = 1";   
+     + " AND u.isCitizen = 1";   
     
     //if year is -1 get all deaths, otherwise filter by year
     if (year != -1)

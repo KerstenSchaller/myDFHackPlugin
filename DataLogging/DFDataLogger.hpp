@@ -59,10 +59,19 @@ struct unitDeathInfo
     std::string death_cause;
 };
 
+struct unitBirthInfo
+{
+    UnitRecord newborn;
+    UnitRecord mother;
+    UnitRecord father;
+};
+
+
 // query functions
 std::vector<int32_t> getUniqueYears();
 std::vector<UnitRecord> getNewCitizens(int32_t year);
 std::vector<unitDeathInfo> getCitizenDeaths(int32_t year);
+std::vector<unitBirthInfo> getCitizenBirths(int32_t year);
 std::vector<JobRecord> getJobsDone(int32_t year);
 
 
